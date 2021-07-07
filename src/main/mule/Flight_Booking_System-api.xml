@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:api-gateway="http://www.mulesoft.org/schema/mule/api-gateway" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd 
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/api-gateway http://www.mulesoft.org/schema/mule/api-gateway/current/mule-api-gateway.xsd">
+ 
+	<flow name="flight-booking-system-api-main">
+        <http:listener config-ref="flight-booking-system-api-httpListenerConfig" path="/api/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:router config-ref="flight-booking-system-api-config" />
+    </flow>
+    <flow name="flight-booking-system-api-console">
+        <http:listener config-ref="flight-booking-system-api-httpListenerConfig" path="/console/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:console config-ref="flight-booking-system-api-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="put:\flight\updateFlight">
+		<logger level="INFO" doc:name="Before-Flight-Update" doc:id="7575f409-ac22-4efc-98ae-a1edc6ac25ad" message='#["seatCount: "++ attributes.queryParams.seatCount ++ " and " ++ "flightId: " ++ attributes.queryParams.bookingId]' />
+		<until-successful maxRetries="2" doc:name="Retry-DB-Connection" doc:id="3ecac8a8-97d0-4bac-bb9f-56c9903c6761" millisBetweenRetries="20000">
+			<try doc:name="Try" doc:id="e963e02d-a816-44a4-80f2-8f804310c3dd">
+				<db:update doc:name="Update-Flight" doc:id="bf9f4ef4-ba0e-4fae-a348-85c42fd297ae" config-ref="Database_Config">
+			<db:sql><![CDATA[UPDATE flight.flight SET seats = :seats WHERE flightId =:flightId]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+	"seats":attributes.queryParams.seatCount as Number,
+	"flightId":attributes.queryParams.bookingId as Number
+	
+}]]]></db:input-parameters>
+		</db:update>
+				<error-handler>
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="c1861f70-81fd-40c2-bdeb-aee4748436b1" type="DB:CONNECTIVITY" />
+			</error-handler>
+		</try>
+		</until-successful>
+		<logger level="INFO" doc:name="After-Flight-Update" doc:id="dc8ff419-52c5-4e25-a086-4a59dde879a5" message="#[payload]" />
+		<choice doc:name="Check-Update-Status" doc:id="08b997f1-55b4-4d0e-b2fb-f6e0386aabd6" >
+			<when expression="#[payload.affectedRows &gt;0]">
+				<set-payload value="#[output application/json&#10;---&#10;true]" doc:name="Response" doc:id="88251e00-8fa2-4cd9-98c2-3921a85a8e57" />
+			</when>
+			<otherwise >
+				<set-payload value="#[output application/json&#10;---&#10;false]" doc:name="Error-Reponse" doc:id="a0c3c925-afe4-47b1-a8e8-703471cd0ca0" />
+			</otherwise>
+		</choice>
+    </flow>
+    <flow name="get:\flight\cancel">
+		<logger level="INFO" doc:name="Before-Flight_Status" doc:id="90ffd8c5-115b-4972-a34c-36662b193d45" message='#["bookingId: " ++ attributes.queryParams.Booking_Id ++ "" ++ "flightId: " ++ attributes.queryParams.flightId]' />
+		<set-variable value="#[attributes.queryParams.Booking_Id]" doc:name="Set Variable" doc:id="43cdda20-82cb-4a9f-94b9-e258cb17b894" variableName="bookingId"/>
+		<until-successful maxRetries="2" doc:name="Retry-DB-Connection" doc:id="d080adab-e014-4920-8ff6-677535287c0b" millisBetweenRetries="2000">
+			<try doc:name="Try" doc:id="f84302b8-b2eb-4125-9bca-28b5d64218b2">
+				<db:update doc:name="Update-Flight_Status" doc:id="90d09fec-58a7-4ef4-9c05-a023567dd4ea" config-ref="Database_Config">
+			<db:sql><![CDATA[UPDATE flight.flight_status SET status = :status where flightId=:flightId AND bookingId=:bookingId]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+	"flightId":attributes.queryParams.flightId,
+	"bookingId":vars.bookingId,
+	"status":"canceled"
+}]]]></db:input-parameters>
+		</db:update>
+				<error-handler>
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="2582b841-8f7d-43d6-a8dc-2a1c483ca8ef" type="DB:CONNECTIVITY" />
+			</error-handler>
+		</try>
+		</until-successful>
+		<logger level="INFO" doc:name="After-Flight_Status" doc:id="445994e7-7183-4404-83e3-8ca225249d89" message="#[payload]" />
+		<choice doc:name="Check-Update-Status" doc:id="9d1429e2-b0ba-4954-90b0-3a418ebba55f" >
+			<when expression="#[payload.affectedRows &gt;0]">
+				<ee:transform doc:name="Success-Response" doc:id="991e2d79-1ac6-40d9-b53a-71b10965e944">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+"bookingID":vars.bookingId,
+"status":"success",
+"cancelAt":now()
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise>
+				<ee:transform doc:name="Failure-Reponse" doc:id="161e6cf6-237a-455c-8cb9-f40fbc32a694" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+"bookingID":vars.bookingId,
+"status":"failed",
+"cancelAt":now()
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+    </flow>
+    <flow name="get:\flight\getFlight">
+        <set-variable value="#[attributes.queryParams.airlineName]" doc:name="AirlineName" doc:id="d88b5127-e32b-4dba-b516-7d2e7dcfc65d" variableName="airlineName" />
+		<logger level="INFO" doc:name="Before-GetAll-FlightRecords" doc:id="44a54d2d-3525-4f9f-bea8-c5682b094bb0" message="#[vars.airlineName]"/>
+		<until-successful maxRetries="2" doc:name="Retry-DB-Connection" doc:id="2cf902b0-995a-4ac7-9e3b-f440d1465bd7" millisBetweenRetries="2000">
+			<try doc:name="Try" doc:id="b3f35fd8-031e-407d-b5fa-896a236e5425">
+				<ee:cache doc:name="Cache-FlightObject" doc:id="099e0866-6d9a-4000-881d-175297471a93" cachingStrategy-ref="Caching_Strategy">
+					<db:select doc:name="Select flight by airlineName" doc:id="82d3e15c-89f3-4359-8499-2bf0a6929024" config-ref="Database_Config">
+			<db:sql><![CDATA[SELECT * FROM flight.flight where airlineName=:airlineName]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+	"airlineName":vars.airlineName
+}]]]></db:input-parameters>
+		</db:select>
+		</ee:cache>
+				<error-handler>
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="b7db5e87-fbc8-43c2-a9a9-7563794fc6ff" type="DB:CONNECTIVITY" />
+			</error-handler>
+		</try>
+		</until-successful>
+		<logger level="INFO" doc:name="After-GetAll-FlightRecords" doc:id="f94d20c1-b517-490a-84ef-9a2082490ac1" message="#[payload]"/>
+		<ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd" doc:id="abdccb39-b24e-4a72-8d41-fa3999b4bce0" doc:name="Flight-Objects">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload map ((item, index) -> {
+	"airlineName": item.airlineName,
+	"flightId": item.flightId,
+	"pirce": item.price,
+	"seats": item.seats,
+	"depature": [{
+		"airport": item.dep_airport,
+		"timezone": item.dep_timezone,
+		"scheduled": item.dep_scheduled,
+		"estimated": item.dep_estimated
+	}],
+	"arrival": [{
+		"airport": item.arr_airport,
+		"timezone": item.arr_timezone,
+		"scheduled": item.arr_scheduled,
+		"estimated": item.arr_estimated
+	}]
+}
+
+)]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="get:\flight\getFlights:flight-booking-system-api-config">
+		<logger level="INFO" doc:name="Before-GetAll-FlightRecords" doc:id="8f50221d-de6e-45b8-9fe6-7812fd3bd56d" message='#["Get all flight records from database"]' />
+		<until-successful maxRetries="2" doc:name="Retry-DB-Connection" doc:id="3cce3264-c3d0-47e6-8b3d-cb5f6c7f30e1" millisBetweenRetries="2000">
+			<try doc:name="Try" doc:id="31c6aa5e-78bf-4470-b882-77ee8390f815">
+				<db:select doc:name="Select-Flight" doc:id="dc1a65dd-9cad-42dd-93f4-6ecde51c6805" config-ref="Database_Config">
+			<db:sql><![CDATA[SELECT * FROM flight.flight]]></db:sql>
+		</db:select>
+				<error-handler>
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="fb2193a9-ce02-431b-b4f9-b329070ee827" type="DB:CONNECTIVITY" />
+			</error-handler>
+		</try>
+		</until-successful>
+		<logger level="INFO" doc:name="After-GetAll-FlightRecords" doc:id="92ca1b94-37c3-4b70-99a2-ef0acc6eb40d" message="#[payload]" />
+		<ee:transform doc:name="Flight-Object" doc:id="b7bc5ccd-799a-4de6-b89e-62dffb749185" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload map ((item, index) -> {
+	"airlineName": item.airlineName,
+	"flightId": item.flightId,
+	"pirce": item.price,
+	"seats": item.seats,
+	"depature": [{
+		"airport": item.dep_airport,
+		"timezone": item.dep_timezone,
+		"scheduled": item.dep_scheduled,
+		"estimated": item.dep_estimated
+	}],
+	"arrival": [{
+		"airport": item.arr_airport,
+		"timezone": item.arr_timezone,
+		"scheduled": item.arr_scheduled,
+		"estimated": item.arr_estimated
+	}]
+}
+)]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+    </flow>
+    <flow name="post:\flight\booking">
+		<set-variable value="#[payload.flightId]" doc:name="FlightId" doc:id="1ceab357-f0e2-44ec-a592-d595b84ce530" variableName="flightId" />
+		<set-variable value="#[randomInt(1000)]" doc:name="BookingId" doc:id="8e153da5-2b4d-4254-be19-deec98a110a4" variableName="booking_Id" />
+		<logger level="INFO" doc:name="Before-Insert-Booking" doc:id="79820e0e-3ece-40df-b46f-c000b60a2e41" message="#[payload]" />
+		<until-successful maxRetries="2" doc:name="Retry-DB-Connection" doc:id="597f697a-8437-4c74-8ef1-a937d82f48dd" millisBetweenRetries="2000">
+			<try doc:name="Try" doc:id="c0ceeb1f-32ba-42cb-9829-5c5c0a181fba">
+				<db:insert doc:name="Insert-Booking" doc:id="7843528d-2808-4dc9-b82f-9201f41ead9e" config-ref="Database_Config">
+			<db:sql><![CDATA[INSERT INTO flight.booking (airlineName, flightId,airport, bookingId,scheduled) VALUES
+	(:airlineName,:flightId,:airport,:bookingId,:scheduled )]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+  "airlineName": payload.airlineName,
+   "flightId":payload.flightId,
+   "airport": payload.airport,
+   "bookingId":vars.booking_Id,
+   "scheduled": payload.scheduled
+}]]]></db:input-parameters>
+		</db:insert>
+				<error-handler>
+					<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="509ec8bd-5996-4d83-b0b0-1e95ee49f741" type="DB:CONNECTIVITY">
+					</on-error-propagate>
+				</error-handler>
+			</try>
+		</until-successful>
+		<logger level="INFO" doc:name="Before-Insert-Booking" doc:id="639ca954-f590-4a7b-b3d8-0087743fb907" message="#[payload]" />
+		<choice doc:name="Check-Insertion" doc:id="008caa37-c83c-4dd4-8c6b-12a7f1f44ab2">
+			<when expression="#[payload.affectedRows &gt;0]">
+				<logger level="INFO" doc:name="Before-Insert-Flight_Status" doc:id="fd1e602a-d46f-48c4-9888-1df8c75a72a9" message="#[payload]" />
+				<until-successful maxRetries="2" doc:name="Retry-DB-Connection" doc:id="1200ca6f-0a84-42e4-b729-4bc3d12885c2" millisBetweenRetries="2000">
+			<try doc:name="Try" doc:id="d0ce3abb-09b4-4bc8-acc6-49b8b1ed37a7">
+			<db:insert doc:name="Insert-Flight_Status" doc:id="87a4e370-d154-4522-a5cf-fe312f4343d7" config-ref="Database_Config">
+					<db:sql><![CDATA[INSERT INTO flight.flight_status
+(
+flightId,
+bookingId,
+status)
+VALUES
+(:flightId,:bookingId,:status)
+]]></db:sql>
+					<db:input-parameters><![CDATA[#[{
+	"flightId":vars.flightId,
+	"bookingId":vars.booking_Id,
+	"status":"active"
+	
+	
+}]]]></db:input-parameters>
+				</db:insert>
+						<error-handler >
+							<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="d6bb1b9c-f525-463b-8894-f4935218e700" type="DB:CONNECTIVITY">
+							</on-error-propagate>
+						</error-handler>
+		</try>
+		</until-successful>
+				<logger level="INFO" doc:name="Before-Insert-Flight_Status" doc:id="8bc3bd86-2908-4929-a1e9-059b37578072" message="#[payload]" />
+					</when>
+				</choice>
+		<set-payload value="#[output application/json&#10;---&#10;{&#10;  booking_Id: vars.booking_Id&#10;}]" doc:name="booking_Id" doc:id="cc346a0d-82e3-493a-a404-4c5ed76edcd4" />
+    </flow>
+</mule>
