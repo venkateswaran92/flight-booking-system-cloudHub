@@ -6,7 +6,7 @@
 
 	<groupId>com.psyncopate</groupId>
 	<artifactId>flight-booking-system-cloudHub</artifactId>
-	<version>1.0.0-SNAPSHOT</version>
+	<version>2.0.0-SNAPSHOT</version>
 	<packaging>mule-application</packaging>
 
 	<name>flight-booking-system-cloudHub</name>
@@ -61,7 +61,7 @@
 						<muleVersion>4.3.0</muleVersion>
 						<username>${anypoint.username}</username>
 						<password>${anypoint.password}</password>
-						<applicationName>flight-booking-system-api</applicationName>
+						<applicationName>flight-booking-system-api-1</applicationName>
 						<environment>Sandbox</environment>
 						<region>us-east-1</region>
 						<workers>1</workers>
