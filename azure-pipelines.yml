@@ -50,4 +50,3 @@ steps:
     effectivePomSkip: true
     sonarQubeRunAnalysis: false
     goals: 'clean install package deploy -DmuleDeploy -DskipTests -Dmule.version=4.3.0 -Danypoint.username=$(anypoint.username) -Danypoint.password=$(anypoint.password) -DclientId=$(clientId) -DclientSecret=$(clientSecret)'
-{"mode":"full","isActive":false}
