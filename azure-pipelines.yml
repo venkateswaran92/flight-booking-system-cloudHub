@@ -49,4 +49,4 @@ steps:
     mavenVersionOption: 'Default'
     effectivePomSkip: true
     sonarQubeRunAnalysis: false
-    goals: 'clean install package deploy -DmuleDeploy -DskipTests -Dmule.version=4.3.0 -Danypoint.username=$(anypoint.username) -Danypoint.password=$(anypoint.password) -DclientId=$(clientId) -DclientSecret=$(clientSecret)'
+    goals: 'clean install package deploy $(MAVEN_OPTS) -DmuleDeploy -DskipTests -Dmule.version=4.3.0 -Danypoint.username=$(anypoint.username) -Danypoint.password=$(anypoint.password) -DclientId=$(clientId) -DclientSecret=$(clientSecret)'
