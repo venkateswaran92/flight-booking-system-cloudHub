@@ -64,10 +64,14 @@ output application/json
 		<logger level="INFO" doc:name="After-Flight-Update" doc:id="dc8ff419-52c5-4e25-a086-4a59dde879a5" message="#[payload]" />
 		<choice doc:name="Check-Update-Status" doc:id="08b997f1-55b4-4d0e-b2fb-f6e0386aabd6" >
 			<when expression="#[payload.affectedRows &gt;0]">
-				<set-payload value="#[output application/json&#10;---&#10;true]" doc:name="Response" doc:id="88251e00-8fa2-4cd9-98c2-3921a85a8e57" />
+				<set-payload value="#[output application/json
+&#10;---
+&#10;true]" doc:name="Response" doc:id="88251e00-8fa2-4cd9-98c2-3921a85a8e57" />
 			</when>
 			<otherwise >
-				<set-payload value="#[output application/json&#10;---&#10;false]" doc:name="Error-Reponse" doc:id="a0c3c925-afe4-47b1-a8e8-703471cd0ca0" />
+				<set-payload value="#[output application/json
+&#10;---
+&#10;false]" doc:name="Error-Reponse" doc:id="a0c3c925-afe4-47b1-a8e8-703471cd0ca0" />
 			</otherwise>
 		</choice>
     </flow>
@@ -99,7 +103,7 @@ output application/json
 ---
 {
 "bookingID":vars.bookingId,
-"status":"success",
+"status":"success ",
 "cancelAt":now()
 }]]></ee:set-payload>
 					</ee:message>
@@ -263,6 +267,10 @@ VALUES
 				<logger level="INFO" doc:name="Before-Insert-Flight_Status" doc:id="8bc3bd86-2908-4929-a1e9-059b37578072" message="#[payload]" />
 					</when>
 				</choice>
-		<set-payload value="#[output application/json&#10;---&#10;{&#10;  booking_Id: vars.booking_Id&#10;}]" doc:name="booking_Id" doc:id="cc346a0d-82e3-493a-a404-4c5ed76edcd4" />
+		<set-payload value="#[output application/json
+&#10;---
+&#10;{
+&#10;  booking_Id: vars.booking_Id
+&#10;}]" doc:name="booking_Id" doc:id="cc346a0d-82e3-493a-a404-4c5ed76edcd4" />
     </flow>
 </mule>
