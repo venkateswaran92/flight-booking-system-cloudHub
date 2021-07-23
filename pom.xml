@@ -87,10 +87,10 @@
 
 	<dependencies>
 
-		<dependency>
-			<groupId>com.mycompany</groupId>
-			<artifactId>global-error-handler</artifactId>
-			<version>1.0.0-SNAPSHOT</version>
+			<dependency>
+			<groupId>c38c44eb-7898-4ebd-96f4-6be1211cdd81</groupId>
+			<artifactId>GlobalErrorHandler</artifactId>
+			<version>1.0.0</version>
 			<classifier>mule-application</classifier>
 		</dependency>
 		<dependency>
